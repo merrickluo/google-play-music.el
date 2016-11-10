@@ -15,3 +15,5 @@ for display in mode line with current play state
 Might implement these functions too
  - helm buffer for choose playlist
  - helm buffer for search
+
+Also a [[https://github.com/merrickluo/spacemacs.d/tree/master/layers/google-play-music][spacemacs layer]] with some keybinding

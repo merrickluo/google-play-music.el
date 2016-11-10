@@ -1,4 +1,4 @@
-;;; google-play-music.el --- gpmdp control              -*- lexical-binding: t; -*-
+;;; google-play-music.el --- Google Play Music Desktop Player Control              -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2016  A.I.
 
@@ -14,68 +14,86 @@
 (require 'websocket)
 (require 'json)
 
-(defvar gpmdp-current-track "not started")
-(defvar gpmdp-ws nil)
-(defvar gpmdp-started nil)
+(defvar google-play-music-mode-line-text "Not Connected")
 
-(defun gpm--dispatch-message(msg)
+(defvar google-play-music--playing-symbol "ᐅ")
+(defvar google-play-music--paused-symbol "||")
+(defvar google-play-music--current-track nil)
+(defvar google-play-music--current-state google-play-music--paused-symbol)
+
+(defvar google-play-music--ws nil)
+
+(defun connectp()
+  (if google-play-music--ws
+      (websocket-openp google-play-music--ws)
+    nil))
+
+(defun google-play-music--update-mode-line()
+  (setq google-play-music-mode-line-text
+        (concat google-play-music--current-state " " google-play-music--current-track)))
+
+(defun google-play-music--update-state(state)
+  (setq google-play-music--current-state
+        (if (eq state :json-false)
+            google-play-music--paused-symbol
+          google-play-music--playing-symbol))
+  (google-play-music--update-mode-line))
+
+(defun google-play-music--track-changed (track)
+  (lexical-let* ((title (plist-get track :title))
+                 (artist (plist-get track :artist)))
+    (setq google-play-music--current-track
+          (concat title "-" artist))
+    (google-play-music--update-mode-line)))
+
+(defun google-play-music--connection-change (resp)
+  (if (string= resp "CODE_REQUIRED")
+      (let ((code (read-string "Enter Code: ")))
+        (google-play-music--connect code))
+    (google-play-music--connect resp)))
+
+
+(defun google-play-music--dispatch-message(msg)
   (setq jmsg (let ((json-object-type 'plist))
                (json-read-from-string msg)))
   (let ((channel (plist-get jmsg :channel))
         (payload (plist-get jmsg :payload)))
     (cond ((string= channel "time") nil)
-          ((string= channel "connect") (gpm--connection-change payload))
-          ((string= channel "track") (gpm--track-changed payload)))))
+          ((string= channel "playState") (google-play-music--update-state payload))
+          ((string= channel "connect") (google-play-music--connection-change payload))
+          ((string= channel "track") (google-play-music--track-changed payload)))))
 
-(defun gpm--track-changed (track)
-  (setq gpmdp-current-track
-        (concat
-         (plist-get track :title)
-         "-"
-         (plist-get track :artist))))
-
-(defun gpm-start()
-  (interactive)
-  (unless gpmdp-started
-    (setq gpmdp-ws
-          (websocket-open
-           "ws://localhost:5672"
-           :on-open (lambda (websocket) (setq gpmdp-started t))
-           :on-close (lambda (_websocket) (setq gpmdp-started nil))
-           :on-message (lambda (_websocket frame)
-                         (gpm--dispatch-message (websocket-frame-text frame)))))))
-
-(defun gpm-connect(&optional arg)
-  (unless gpmdp-started
-    (gpm-start))
-
+(defun google-play-music--connect(&optional arg)
   (let ((msg '(:namespace "connect" :method "connect")))
     (let* ((param (if (numberp arg) (number-to-string arg) arg))
           (parg (if param
                     (plist-put msg :arguments `("google-play-music.el", param))
                   (plist-put msg :arguments '("google-play-music.el")))))
-      (websocket-send-text gpmdp-ws (json-encode parg)))))
+      (websocket-send-text google-play-music--ws (json-encode parg)))))
 
-(defun gpm--connection-change (resp)
-  (if (string= resp "CODE_REQUIRED")
-      (let ((code (read-string "Enter Code: ")))
-        (gpm-connect code))
-    (gpm-connect resp)))
+(defun google-play-music-start()
+  (interactive)
+  (unless (connectp)
+    (setq google-play-music--ws
+          (websocket-open
+           "ws://localhost:5672"
+           :on-message (lambda (_websocket frame)
+                         (google-play-music--dispatch-message (websocket-frame-text frame)))))))
 
-(defun gpm-play-pause (&rest args)
+(defun google-play-music-play-pause()
   (interactive)
   (let ((msg '(:namespace "playback" :method "playPause" :requestID 1)))
-    (websocket-send-text gpmdp-ws (json-encode msg))))
+    (websocket-send-text google-play-music--ws (json-encode msg))))
 
-(defun gpm-play-next()
+(defun google-play-music-forward()
   (interactive)
   (let ((msg '(:namespace "playback" :method "forward" :requestID 1)))
-    (websocket-send-text gpmdp-ws (json-encode msg))))
+    (websocket-send-text google-play-music--ws (json-encode msg))))
 
-(defun gpm-play-previous()
+(defun google-play-music-unwind()
   (interactive)
   (let ((msg '(:namespace "playback" :method "rewind" :requestID 1)))
-    (websocket-send-text gpmdp-ws (json-encode msg))))
+    (websocket-send-text google-play-music--ws (json-encode msg))))
 
 (provide 'google-play-music)
 ;;; google-play-music.el ends here

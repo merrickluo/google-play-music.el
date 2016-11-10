@@ -1,0 +1,17 @@
+#+TITLE: google-play-music.el
+
+Control [[https://github.com/MarshallOfSound/Google-Play-Music-Desktop-Player-UNOFFICIAL-/blob/master/docs/PlaybackAPI_WebSocket.md][Desktop Player for Google Play Music]] within emacs
+
+Using their websocket to get/control the player.
+Only support basic control for now
+ - play/pause
+ - next song
+ - previous song
+
+Also provide a variable
+=google-play-music-mode-line-text=
+for display in mode line with current play state
+
+Might implement these functions too
+ - helm buffer for choose playlist
+ - helm buffer for search

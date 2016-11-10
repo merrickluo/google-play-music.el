@@ -28,7 +28,7 @@
           ((string= channel "track") (gpm--track-changed payload)))))
 
 (defun gpm--track-changed (track)
-  (setq gpm-current-track
+  (setq gpmdp-current-track
         (concat
          (plist-get track :title)
          "-"
